@@ -1,3 +1,17 @@
+# ==============================================================================
+# PRODUCTION COMPOSE FILE — used on the EC2 server via CI/CD.
+# Unlike docker-compose.yaml (local dev), this file does NOT build images.
+# It pulls pre-built images from Docker Hub, which are pushed by
+# .github/workflows/cd.yml on every push to main.
+#
+# Usage on EC2:
+#   docker compose -f docker-compose.prod.yaml pull
+#   docker compose -f docker-compose.prod.yaml up -d
+#
+# Requires a .env file with: MYSQL_ROOT_PASSWORD, MYSQL_USERS_DB,
+# MYSQL_FARMS_DB, MONGODB_DATABASE, DOCKERHUB_USERNAME
+# ==============================================================================
+
 services:
   # ==============================================================================
   # Database Layer (Shared MySQL & MongoDB)
@@ -7,10 +21,9 @@ services:
     container_name: smartfarm_mysql
     restart: always
     environment:
-      # Creates root account with password from environment variables
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-    ports:
-      - "3306:3306"
+    # NOTE: DB ports are NOT published publicly on EC2 for security.
+    # Services reach MySQL over the internal smartfarm_net network.
     volumes:
       - mysql_data:/var/lib/mysql
       # Map SQL script to automatically create isolated schemas on startup
@@ -28,8 +41,6 @@ services:
     image: mongo:6.0
     container_name: smartfarm_mongodb
     restart: always
-    ports:
-      - "27017:27017"
     volumes:
       - mongodb_data:/data/db
     networks:
@@ -42,18 +53,17 @@ services:
       start_period: 10s
 
   # ==============================================================================
-  # Backend FastAPI Services Layer
+  # Backend FastAPI Services Layer (images from Docker Hub)
   # ==============================================================================
   user-service:
-    build:
-      context: ./user-service
-      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/smartfarm-user-service:latest
     container_name: smartfarm_user_service
     restart: always
-    ports:
-      - "8001:8001"
+    # Commented out on EC2: services talk over the internal network only.
+    # Uncomment to access http://<ec2-ip>:8001/docs publicly.
+    # ports:
+    #   - "8001:8001"
     environment:
-      # Connection params (config.py builds the URL with a URL-encoded password)
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
       - MYSQL_USER=root
@@ -71,21 +81,16 @@ services:
       retries: 3
 
   farm-service:
-    build:
-      context: ./farm-service
-      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/smartfarm-farm-service:latest
     container_name: smartfarm_farm_service
     restart: always
-    ports:
-      - "8002:8002"
     environment:
-      # Connection params (config.py builds the URL with a URL-encoded password)
       - MYSQL_HOST=mysql
       - MYSQL_PORT=3306
       - MYSQL_USER=root
       - MYSQL_PASSWORD=${MYSQL_ROOT_PASSWORD}
       - MYSQL_FARMS_DB=${MYSQL_FARMS_DB}
-      - USER_SERVICE_URL=${USER_SERVICE_URL}
+      - USER_SERVICE_URL=http://user-service:8001
     depends_on:
       mysql:
         condition: service_healthy
@@ -100,17 +105,13 @@ services:
       retries: 3
 
   monitoring-service:
-    build:
-      context: ./monitoring-service
-      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/smartfarm-monitoring-service:latest
     container_name: smartfarm_monitoring_service
     restart: always
-    ports:
-      - "8003:8003"
     environment:
       - MONGODB_URL=mongodb://mongodb:27017
       - MONGODB_DATABASE=${MONGODB_DATABASE}
-      - FARM_SERVICE_URL=${FARM_SERVICE_URL}
+      - FARM_SERVICE_URL=http://farm-service:8002
     depends_on:
       mongodb:
         condition: service_healthy
@@ -125,20 +126,18 @@ services:
       retries: 3
 
   # ==============================================================================
-  # Browser-facing FastAPI gateway and server-rendered templates
-  # ============================================================================== 
+  # Browser-facing gateway (the ONLY public port: 3000)
+  # ==============================================================================
   gateway-service:
-    build:
-      context: ./gateway-service
-      dockerfile: Dockerfile
+    image: ${DOCKERHUB_USERNAME}/smartfarm-gateway-service:latest
     container_name: smartfarm_gateway
     restart: always
     ports:
       - "3000:3000"
     environment:
-      - USER_SERVICE_URL=${USER_SERVICE_URL}
-      - FARM_SERVICE_URL=${FARM_SERVICE_URL}
-      - MONITORING_SERVICE_URL=${MONITORING_SERVICE_URL}
+      - USER_SERVICE_URL=http://user-service:8001
+      - FARM_SERVICE_URL=http://farm-service:8002
+      - MONITORING_SERVICE_URL=http://monitoring-service:8003
     depends_on:
       user-service:
         condition: service_healthy

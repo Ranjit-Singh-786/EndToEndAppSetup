@@ -175,5 +175,6 @@ smartfarm/
 
 1. **[docs/learning-guide.md](docs/learning-guide.md)**: Step-by-step tutorial from local development to Docker Compose.
 2. **[docs/demo-scenario.md](docs/demo-scenario.md)**: A demo script showing microservices boundaries, service-to-service calls, and fault tolerance.
+3. **[docs/deploy.md](docs/deploy.md)**: Deploy to AWS EC2 with a full CI/CD pipeline (GitHub Actions → Docker Hub → EC2).
 
 > Note for GitHub Actions: the repository is designed to be deployed by building the images in `docker-compose.yaml` (or `docker compose build` per service) and running them on any host. Health checks on each service make container-orchestrator readiness simple to wire up.
