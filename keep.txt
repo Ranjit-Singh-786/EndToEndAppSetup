@@ -1,0 +1,56 @@
+===========================================================================
+SMARTFARM PROJECT STATUS & PENDING TASKS
+Last updated: 2026-08-14
+===========================================================================
+
+1. WHAT WORKS (DONE)
+---------------------------------------------------------------------------
+- Local Docker Compose app builds & runs (6 containers: mysql, mongodb,
+  user-service, farm-service, monitoring-service, gateway-service).
+- App UI runs on http://localhost:3000 (Gateway).
+- Service APIs: 8001 (user), 8002 (farm), 8003 (monitoring).
+- All 4 services have unit tests (pytest) - pass.
+- GitHub Actions CI workflow (.github/workflows/ci.yml) - runs tests for
+  all 4 services on push/PR to master. PASSING.
+- GitHub Actions CD workflow (.github/workflows/cd.yml) - builds all 4
+  images and pushes them to Docker Hub. CONFIRMED WORKING.
+- Images pushed to Docker Hub (user : ranjitsingh00786):
+    smartfarm-user-service
+    smartfarm-farm-service
+    smartfarm-monitoring-service
+    smartfarm-gateway-service
+  (tags: latest + commit SHA)
+- Production compose file created: docker-compose.prod.yaml
+  (pulls images from Docker Hub, only port 3000 public).
+- EC2 bootstrap script created: deploy/ec2-setup.sh
+- Deployment guide: docs/deploy.md
+- Healthcheck interval increased from 10s to 60s to reduce background
+  API hits.
+
+2. PENDING / TODO
+---------------------------------------------------------------------------
+- [ ] EC2 instance: launch Ubuntu 22.04/24.04, security group ports 22 + 3000.
+- [ ] Run deploy/ec2-setup.sh once on EC2 to install Docker + Compose plugin.
+- [ ] Set REAL GitHub secrets (currently dummy values for EC2 ones):
+        EC2_HOST       (EC2 public IP / DNS)
+        EC2_USER       (ubuntu)
+        EC2_SSH_KEY    (full .pem content)
+      Also replace dummy MYSQL_ROOT_PASSWORD / DB names with real ones.
+      NOTE: MYSQL_ROOT_PASSWORD must be ALPHANUMERIC only (no $, quotes, spaces).
+- [ ] Re-run CD workflow (Actions > CD > Run workflow) after setting real
+      EC2 secrets - "Deploy to EC2" job currently FAILS because EC2 secrets
+      are dummy (expected, not a code bug).
+- [ ] (Optional) Make deploy job conditional so it skips when EC2 not ready.
+- [ ] (Optional) Update docs/deploy.md references from "main" to "master".
+
+3. IMPORTANT NOTES
+---------------------------------------------------------------------------
+- Git default branch is "master", NOT "main". Workflows now trigger on master.
+- DOCKERHUB_TOKEN was shared in chat - SHOULD BE ROTATED on Docker Hub
+  (Account Settings > Security > delete + create new Read&Write token),
+  then update the DOCKERHUB_TOKEN secret.
+- .env is gitignored; never commit it. .env is generated fresh on EC2 by
+  the CD workflow from GitHub secrets.
+- Deploying a new version = just push to master (full pipeline reruns).
+  Rollback possible via commit-SHA image tags.
+===========================================================================
