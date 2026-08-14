@@ -1,12 +1,91 @@
 # SmartFarm: End-to-End Microservices Demo Application
 
-SmartFarm is a learning-focused, fully containerized **Smart Agriculture Management System** built with a microservices architecture using **FastAPI, Docker, Docker Compose, MySQL, MongoDB, and Jinja2 server-rendered templates**.
+**SmartFarm** is a learning-focused, fully containerized **Smart Agriculture Management System**. It is built as a **microservices architecture** using **FastAPI, Docker, Docker Compose, MySQL, MongoDB, and server-rendered Jinja2 templates** — and it ships with a complete **CI/CD pipeline** (GitHub Actions → Docker Hub → AWS EC2) so you can see the *entire* journey from local development to production deployment.
 
-This repository demonstrates how to architect, develop, connect, containerize, and test independent services that function together as a unified application — with a real multi-page web UI instead of a single-page JavaScript app.
+This repository demonstrates how to architect, develop, connect, containerize, test, and deploy independent services — with a real multi-page web UI instead of a single-page JavaScript app.
 
 ---
 
-## 1. System Architecture
+## 1. What This Project Does (Short Introduction)
+
+SmartFarm simulates a farm management platform with three core business domains:
+
+1. **Farmers (Users)** — register and manage farmer profiles.
+2. **Farms & Crops** — register land assets and the crops growing on them.
+3. **Monitoring** — record sensor readings (soil moisture, temperature, etc.) for each farm.
+
+Each domain is a **separate service** with its **own database**, and a **Gateway service** renders the browser UI by composing data from all three. The whole system runs as 6 Docker containers on a single machine — and the same code is automatically tested, packaged, and deployed to an AWS EC2 server by a CI/CD pipeline.
+
+---
+
+## 2. Technologies Used & Every Term Explained
+
+This is the "what did you actually do here?" section. Every piece of tech and every configuration concept used in this project is explained in plain words.
+
+### Application & Language
+
+| Term | What it is | How we use it here |
+|---|---|---|
+| **Python** | A general-purpose programming language | All 4 services are written in Python |
+| **FastAPI** | A modern Python web framework for building REST APIs (very fast, async) | Every service exposes HTTP endpoints (`/farmers`, `/farms`, `/monitoring`, `/health`) |
+| **Uvicorn** | The ASGI web server that actually runs a FastAPI app | Each container starts with `uvicorn app.main:app` |
+| **Pydantic** | Data validation library built into FastAPI | Validates request bodies (e.g. a Farmer must have a name + email) |
+| **SQLAlchemy** | Python ORM — lets you talk to a SQL database with Python objects instead of raw SQL | Used by user-service and farm-service for MySQL |
+| **Jinja2** | Server-side templating engine — renders HTML on the server | Gateway renders the whole UI (dashboard, forms, tables) without a JS framework |
+| **Pytest** | Python testing framework | Every service has mocked API tests; CI runs them automatically |
+
+### Architecture & Patterns
+
+| Term | What it is | How we use it here |
+|---|---|---|
+| **Microservices** | Splitting an application into small, independent services instead of one big monolith | 3 domain services + 1 gateway, each with its own responsibility and database |
+| **BFF (Backend-for-Frontend)** | A dedicated service that sits between the browser and the other services, composing data for the UI | The Gateway (port 3000) is the only service the browser talks to |
+| **Service-to-Service Communication** | One service calling another over HTTP | Farm Service verifies a farmer exists via User Service; Monitoring verifies a farm via Farm Service |
+| **Database-per-Service** | Each service owns its own database/schema — no shared tables | `smartfarm_users` (User), `smartfarm_farms` (Farm), `smartfarm_monitoring` (Monitoring, MongoDB) |
+| **REST API** | HTTP endpoints that create/read/update data (GET/POST/PUT/DELETE) | All internal communication is plain HTTP JSON |
+
+### Databases
+
+| Term | What it is | Why we chose it here |
+|---|---|---|
+| **MySQL** | Popular open-source **relational** SQL database (tables, rows, strict schemas, foreign keys) | Perfect for Farmers/Farms/Crops — structured business data with constraints (unique emails, linked records) |
+| **MongoDB** | Popular **NoSQL** document database (flexible JSON-like documents, no fixed schema) | Perfect for sensor readings — different sensors report different fields (moisture, temperature, battery...) |
+| **Schema / Collection** | MySQL's table container vs MongoDB's document container | Each service gets its own isolated schema/collection so they never touch each other's data |
+| **Seed / Init Script** | A script that runs on first database boot to create the schema | `init-db/init.sql` auto-creates `smartfarm_users` and `smartfarm_farms` on first start |
+
+### Docker & Containerization
+
+| Term | What it is | How we use it here |
+|---|---|---|
+| **Docker** | Tool to package an app + its runtime into an isolated **container** | Each service + each database runs in its own container |
+| **Dockerfile** | A recipe that defines how to build an image (base image → install deps → copy code → start command) | One per service, e.g. `user-service/Dockerfile` starts from `python:3.11-slim` |
+| **Image** | A read-only snapshot of the app (the "template") | Built locally or in CI, then pushed to Docker Hub |
+| **Container** | A running instance of an image | 6 containers run together: mysql, mongodb, user, farm, monitoring, gateway |
+| **Docker Compose** | Tool to define and run a whole multi-container app from one YAML file | `docker-compose.yaml` (local/dev) + `docker-compose.prod.yaml` (EC2) |
+| **Volume** | Persistent storage attached to a container so data survives restarts | `mysql_data` and `mongodb_data` keep DB data alive across container restarts |
+| **Network (bridge)** | A private virtual network; containers reach each other by service name | Services call `http://user-service:8001` instead of hard-coded IPs |
+| **Port Mapping** | Forwarding a container port to the host, e.g. `"3000:3000"` | Gateway is public on 3000; on EC2 the DB/API ports stay internal for security |
+| **Healthcheck** | Docker periodically checks if a container is healthy (e.g. curl `/health`) | Every service has one (60s interval); Compose uses them for startup ordering (`depends_on: condition: service_healthy`) |
+| **Environment Variables (.env)** | Config passed into containers at runtime (passwords, URLs, DB names) | `.env` is never committed to git; CI generates it on the server from GitHub Secrets |
+
+### CI/CD & Deployment (The DevOps Layer)
+
+| Term | What it is | How we use it here |
+|---|---|---|
+| **Git** | Version control — tracks every change to the code | All code lives in this repo |
+| **GitHub** | Online git hosting + collaboration | Repo is hosted here |
+| **GitHub Actions** | GitHub's built-in CI/CD runner — runs automated jobs on triggers (push, PR, manual) | 2 workflows: `ci.yml` (tests) and `cd.yml` (build, push, deploy) |
+| **CI (Continuous Integration)** | Automatically test every change as soon as it's pushed | `ci.yml` runs `pytest` for all 4 services on every push/PR |
+| **CD (Continuous Delivery/Deployment)** | Automatically package and ship a verified change to a server | `cd.yml` builds images, pushes to Docker Hub, then SSHes into EC2 and starts the app |
+| **Docker Hub** | Public registry where Docker images are stored and shared | All 4 images (`smartfarm-user-service`, etc.) are pushed there, tagged `latest` + commit SHA |
+| **AWS EC2** | Amazon's cloud virtual server | Production host for the app |
+| **SSH / SSH Key** | Secure encrypted way to log into a server | CI/CD uses a private key (`.pem`) to connect to EC2 and run deployment commands |
+| **GitHub Secrets** | Encrypted variables stored in the repo settings — never visible in code or logs | Docker Hub credentials, EC2 address/key, MySQL password, etc. |
+| **Rollback** | Reverting to an older version | Images are tagged with the commit SHA, so an older image can be pulled manually |
+
+---
+
+## 3. System Architecture
 
 The flow is: **Browser → Gateway (FastAPI + Jinja2 templates) → Microservices (HTTP APIs) → Databases (MySQL & MongoDB)**.
 
@@ -39,24 +118,37 @@ graph TD
     MS -->|Read/Write Collection: readings| MONGO
 ```
 
-Key change vs. a classic static frontend: the browser only ever talks to the **Gateway Service** on port 3000. The gateway renders pages with **FastAPI + Jinja2 templates** and composes data by calling the three domain services over HTTP — the same boundary the services themselves use. This is a **BFF (Backend-for-Frontend)** style pattern.
+**Key design choice:** the browser only ever talks to the **Gateway Service** (port 3000). The gateway renders pages with **FastAPI + Jinja2 templates** and composes data by calling the three domain services over HTTP — the same boundary the services themselves use. This is a **BFF (Backend-for-Frontend)** style pattern.
 
 ---
 
-## 2. Technologies Used
+## 4. CI/CD Pipeline (How It Works)
 
-* **Python & FastAPI**: For building high-performance, asynchronous REST APIs and the server-rendered gateway.
-* **Jinja2 Templates**: Server-side HTML rendering for a multi-page UI (no SPA, no heavy frontend framework).
-* **SQLAlchemy**: ORM used to manage MySQL database transactions.
-* **MySQL**: Relational database for structured profile data (Farmers, Farms, Crops).
-* **MongoDB**: Document-oriented NoSQL database for flexible, high-frequency sensor readings.
-* **Docker & Docker Compose**: Containerization, isolated environments, service networking, one-command orchestration.
-* **HTML5 / CSS3 + progressive-enhancement JavaScript**: Pages work without JavaScript; a small AJAX request refreshes the live monitoring panel.
-* **Pytest**: Testing framework used to run isolated, mocked endpoint tests for every service.
+```
+push to master
+   │
+   ▼
+GitHub Actions ── CI ──► run pytest for all 4 services (.github/workflows/ci.yml)
+   │
+   ▼
+GitHub Actions ── CD ──► build 4 images ──► push to Docker Hub
+   │                          (smartfarm-<service>:latest + :<commit-sha>)
+   ▼
+SSH to EC2 ──► docker compose pull ──► docker compose up -d ──► app live on :3000
+```
+
+| Workflow | Triggers | What it does |
+|---|---|---|
+| **CI** (`ci.yml`) | every push / PR to `master` | Runs pytest for user, farm, monitoring and gateway services |
+| **CD** (`cd.yml`) | every push to `master` or manual "Run workflow" | Builds 4 images → pushes to Docker Hub → SSHes into EC2 → pulls images → starts containers |
+
+**On the EC2 server, images are never built** — it only pulls ready-made images from Docker Hub using `docker-compose.prod.yaml`. Deploying a new version is as simple as pushing to `master`.
+
+Full step-by-step setup (EC2, secrets, verification): **[docs/deploy.md](docs/deploy.md)**
 
 ---
 
-## 3. The Multi-Page UI (Gateway Service)
+## 5. The Multi-Page UI (Gateway Service)
 
 Every domain service gets its own set of pages (2–4 each), plus a "Command Center" that aggregates everything.
 
@@ -78,70 +170,47 @@ Every domain service gets its own set of pages (2–4 each), plus a "Command Cen
 
 ---
 
-## 4. Core Architectural Concepts Demonstrated
+## 6. Running Locally
 
-### A. Why Microservices?
-A monolithic architecture packages the entire application as a single codebase and deployment unit. SmartFarm splits the system into independent services based on business domain boundaries:
-1. **User Service**: Manages farmer profiles.
-2. **Farm Service**: Manages land assets and crops.
-3. **Monitoring Service**: Ingests sensor telemetry.
+Prerequisites: **Docker** with **Docker Compose** installed.
 
-Each service can be scaled, deployed, and even written in different languages independently.
+```bash
+# 1. Create your config from the template
+cp .env.example .env        # edit passwords/URLs if needed
 
-### B. Relational (MySQL) vs. NoSQL (MongoDB)
-* **MySQL** stores Farmers, Farms, and Crops — relational tables are ideal for business definitions with strict constraints (unique emails, linked crops).
-* **MongoDB** stores Sensor Readings — sensor nodes generate fast, flexible JSON-like telemetry. Different sensors may report different attributes (moisture, temperature, battery, signal…), which a schema-less document model handles without migrations.
+# 2. Build & start all 6 containers
+docker compose up -d --build
 
-### C. Database Ownership: Shared Infrastructure vs. Shared Database
-Directly sharing tables between services creates tight coupling and breaks independent deployment. SmartFarm enforces **Database-per-Service**:
-* **Shared infrastructure**: one MySQL container for the whole sandbox.
-* **Isolated ownership**: User Service *only* connects to `smartfarm_users`; Farm Service *only* connects to `smartfarm_farms`. Neither can read the other's tables. Cross-boundary data flows only through HTTP APIs.
+# 3. Watch it come up
+docker compose ps
+docker compose logs -f gateway-service
+```
 
-### D. Service-to-Service Communication
-* Creating a farm → Farm Service calls `GET /farmers/{farmer_id}` on User Service. A `404` rejects the farm creation.
-* Posting a reading → Monitoring Service calls `GET /farms/{farm_id}` on Farm Service. A `404` rejects the reading.
-* The **Gateway** uses the exact same HTTP pattern to compose pages.
+> Healthchecks run every **60 seconds** — this is intentional (keeps background API traffic low). Compose waits for each dependency to be healthy before starting the next service.
 
----
+Useful commands:
 
-## 5. Docker & Containerization Explained
-
-* **Dockerfile**: A recipe script to build a container image (base image, packages, source, command).
-* **Image**: A read-only snapshot containing the application code and runtime.
-* **Container**: A running, isolated instance of an image.
-* **Volume**: Persistent storage mounted from the host so MySQL/MongoDB data survives container restarts.
-* **Network**: A private bridge network (`smartfarm_net`) lets containers resolve each other by name (e.g. `http://user-service:8001`) instead of hard-coded IPs.
-* **Docker Compose**: Defines and runs the whole multi-container application via one file (`docker-compose.yaml`), including health checks, dependency ordering, env vars, and volumes.
-
----
-
-## 6. Crucial Docker CLI Commands
-
-| Action | Command | Description |
-|---|---|---|
-| **Build Images** | `docker compose build` | Builds all service images. |
-| **Start Sandbox** | `docker compose up -d` | Starts all services in the background. |
-| **Start & Rebuild** | `docker compose up --build` | Rebuilds and starts everything (foreground). |
-| **Stop Sandbox** | `docker compose down` | Stops and removes containers, network, and resources. |
-| **List Containers** | `docker ps -a` | Shows status of all containers. |
-| **View Logs** | `docker compose logs -f [service]` | Follows logs for the whole app or one service. |
-| **Execute Command** | `docker exec -it smartfarm_mysql mysql -u root -proot@123` | Opens a client shell inside a container. |
-| **Clean Volumes** | `docker volume prune` | Deletes unused persistent volumes. |
-| **List Images** | `docker images` | Lists built/pulled images. |
+| Action | Command |
+|---|---|
+| Stop everything | `docker compose down` |
+| Rebuild & start | `docker compose up -d --build` |
+| View logs (one service) | `docker compose logs -f user-service` |
+| Execute inside a container | `docker exec -it smartfarm_mysql mysql -u root -p` |
+| Validate compose file | `docker compose config --quiet` |
 
 ---
 
 ## 7. Accessing the Application
 
-Once running:
-
-* **Web UI (Gateway)**: [http://localhost:3000](http://localhost:3000)
-* **User Service OpenAPI Docs**: [http://localhost:8001/docs](http://localhost:8001/docs)
-* **Farm Service OpenAPI Docs**: [http://localhost:8002/docs](http://localhost:8002/docs)
-* **Monitoring Service OpenAPI Docs**: [http://localhost:8003/docs](http://localhost:8003/docs)
-* **Gateway Health (aggregates all services)**: [http://localhost:3000/health](http://localhost:3000/health)
-* **MySQL Server**: `localhost:3306` (Credentials: `root` / `root@123`)
-* **MongoDB Server**: `localhost:27017`
+| What | URL |
+|---|---|
+| **Web UI (Gateway)** | http://localhost:3000 |
+| User Service API docs | http://localhost:8001/docs |
+| Farm Service API docs | http://localhost:8002/docs |
+| Monitoring Service API docs | http://localhost:8003/docs |
+| Gateway health (aggregates all services) | http://localhost:3000/health |
+| MySQL server | localhost:3306 (root / your password) |
+| MongoDB server | localhost:27017 |
 
 ---
 
@@ -149,32 +218,30 @@ Once running:
 
 ```text
 smartfarm/
-├── docker-compose.yaml          # Orchestrates all 6 containers
+├── docker-compose.yaml          # Local/dev orchestration (6 containers, builds images)
+├── docker-compose.prod.yaml     # Production file for EC2 (pulls images from Docker Hub)
 ├── .env / .env.example          # Configuration (never commit .env)
 ├── init-db/init.sql             # Creates isolated MySQL schemas on first boot
-├── gateway-service/             # NEW: browser-facing FastAPI app
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── app/
-│   │   ├── main.py              # All page routes + form handling (PRG)
-│   │   ├── client.py            # Tiny HTTP client for service calls
-│   │   └── config.py            # Upstream service URLs
-│   ├── templates/               # Jinja2 pages (base, dashboard, farmers/,
-│   │   │                        # farms/, monitoring/, errors/)
-│   ├── static/                  # CSS + one progressive-enhancement JS file
-│   └── tests/test_main.py       # Mocked gateway tests
+├── .github/workflows/
+│   ├── ci.yml                   # Runs pytest for all services on push/PR
+│   └── cd.yml                   # Build+push to Docker Hub, then deploy to EC2
+├── deploy/ec2-setup.sh          # One-time Docker install on the EC2 server
+├── gateway-service/             # Browser-facing FastAPI app (port 3000)
 ├── user-service/                # Farmer profiles (MySQL: smartfarm_users)
 ├── farm-service/                # Farms & crops (MySQL: smartfarm_farms)
 ├── monitoring-service/          # Sensor readings (MongoDB)
-└── docs/                        # learning-guide.md, demo-scenario.md
+└── docs/
+    ├── learning-guide.md        # From local development to Docker Compose
+    ├── demo-scenario.md         # Microservice boundaries + fault tolerance demo
+    └── deploy.md                # Full CI/CD deployment guide (EC2 + Docker Hub)
 ```
 
 ---
 
-## 9. Next Steps
+## 9. Documentation & Next Steps
 
 1. **[docs/learning-guide.md](docs/learning-guide.md)**: Step-by-step tutorial from local development to Docker Compose.
 2. **[docs/demo-scenario.md](docs/demo-scenario.md)**: A demo script showing microservices boundaries, service-to-service calls, and fault tolerance.
-3. **[docs/deploy.md](docs/deploy.md)**: Deploy to AWS EC2 with a full CI/CD pipeline (GitHub Actions → Docker Hub → EC2).
+3. **[docs/deploy.md](docs/deploy.md)**: Deploy to AWS EC2 with the full CI/CD pipeline (GitHub Actions → Docker Hub → EC2).
 
-> Note for GitHub Actions: the repository is designed to be deployed by building the images in `docker-compose.yaml` (or `docker compose build` per service) and running them on any host. Health checks on each service make container-orchestrator readiness simple to wire up.
+> Note: the repository's default branch is `master`; the CI/CD workflows trigger on `master`.
