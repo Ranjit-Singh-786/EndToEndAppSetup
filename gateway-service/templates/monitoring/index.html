@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-heading"><div><p class="eyebrow">MONITORING SERVICE / MONGODB</p><h1>Field monitoring</h1><p class="lede">Select a farm to inspect the latest telemetry. The dashboard loads its live panel through a small AJAX request, while every page also works without JavaScript.</p></div><a class="button primary amber-button" href="/monitoring/readings/new">+ Record reading</a></section>
+<section class="selector-bar"><form method="get" action="/monitoring"><label for="farm-select">Active farm</label><select id="farm-select" name="farm_id" data-monitoring-select><option value="">Choose a farm</option>{% for farm in farms %}<option value="{{ farm.id }}" {% if selected_farm_id == farm.id %}selected{% endif %}>{{ farm.farm_name }} · #{{ farm.id }}</option>{% endfor %}</select><noscript><button class="button primary amber-button" type="submit">Load</button></noscript></form><span class="ownership amber-text">OWNER · monitoring-service · MongoDB</span></section>
+<div id="monitoring-panel" data-monitoring-panel data-farm-id="{{ selected_farm_id or '' }}">{% include "monitoring/_panel.html" %}</div>
+{% endblock %}

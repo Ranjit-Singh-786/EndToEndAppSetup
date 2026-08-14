@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-heading"><div><p class="eyebrow">USER SERVICE / MYSQL</p><h1>Farmer registry</h1><p class="lede">Profiles live inside the User Service. Other services only see them through an API.</p></div><a class="button primary" href="/farmers/new">+ Register farmer</a></section>
+<section class="toolbar"><span>{{ farmers|length }} registered profile{{ '' if farmers|length == 1 else 's' }}</span><span class="ownership blue-text">OWNER · user-service</span></section>
+<section class="record-grid">
+    {% for farmer in farmers %}<article class="record-card accent-blue"><div class="record-index">0{{ loop.index }}</div><div class="record-body"><div class="record-title"><h2>{{ farmer.name }}</h2><span class="pill blue">ID {{ farmer.id }}</span></div><p>{{ farmer.email }}</p><dl><div><dt>Phone</dt><dd>{{ farmer.phone or 'Not provided' }}</dd></div><div><dt>Joined</dt><dd>{{ farmer.created_at[:10] if farmer.created_at else 'Recently' }}</dd></div></dl><a class="text-link" href="/farmers/{{ farmer.id }}">Open profile →</a></div></article>
+    {% else %}<div class="empty-state"><h2>No farmers yet</h2><p>Register the first profile to begin the cross-service workflow.</p><a class="button primary" href="/farmers/new">Register farmer</a></div>{% endfor %}
+</section>
+{% endblock %}

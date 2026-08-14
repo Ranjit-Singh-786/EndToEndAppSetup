@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title }} | SmartFarm</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+    <div class="shell">
+        <header class="topbar">
+            <a class="brand" href="/">
+                <span class="brand-mark">SF</span>
+                <span><strong>SmartFarm</strong><small>field operations console</small></span>
+            </a>
+            <nav class="nav-links" aria-label="Main navigation">
+                <a class="{% if request.url.path == '/' %}active{% endif %}" href="/">Overview</a>
+                <a class="{% if request.url.path.startswith('/farmers') %}active{% endif %}" href="/farmers">Farmers</a>
+                <a class="{% if request.url.path.startswith('/farms') %}active{% endif %}" href="/farms">Farms & crops</a>
+                <a class="{% if request.url.path.startswith('/monitoring') %}active{% endif %}" href="/monitoring">Monitoring</a>
+            </nav>
+            <a class="api-link" href="http://localhost:8001/docs" target="_blank" rel="noreferrer">API docs <span>↗</span></a>
+        </header>
+
+        {% if request.query_params.get('message') %}
+        <div class="flash success">{{ request.query_params.get('message') }}</div>
+        {% endif %}
+        {% if request.query_params.get('error') or error %}
+        <div class="flash error">{{ request.query_params.get('error') or error }}</div>
+        {% endif %}
+
+        <main>{% block content %}{% endblock %}</main>
+        <footer class="footer">SmartFarm learning system <span>•</span> Gateway + 3 FastAPI services + MySQL + MongoDB</footer>
+    </div>
+    <script src="{{ url_for('static', path='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="detail-hero green-border"><div><p class="eyebrow">FARM WORKSPACE / FARM SERVICE</p><h1>{{ farm.farm_name }}</h1><p class="lede">{{ farm.location }} · {{ farm.area_acres }} acres · owned by <a href="/farmers/{{ farmer.id }}">{{ farmer.name }}</a></p></div><span class="big-id">#{{ farm.id }}</span></section>
+<section class="section-heading"><div><p class="eyebrow">CROP PLAN</p><h2>{{ farm.crops|length }} crop record{{ '' if farm.crops|length == 1 else 's' }}</h2></div><a class="button primary green-button" href="/farms/{{ farm.id }}/crops/new">+ Add crop</a></section>
+<section class="crop-table"><div class="crop-table-head"><span>Crop</span><span>Type</span><span>Dates</span><span>Status</span></div>{% for crop in farm.crops %}<div class="crop-table-row"><strong>{{ crop.crop_name }}</strong><span>{{ crop.crop_type }}</span><span>{{ crop.sowing_date }} → {{ crop.expected_harvest_date }}</span><span class="pill {{ 'amber' if crop.status == 'Harvested' else 'green' }}">{{ crop.status }}</span></div>{% else %}<div class="empty-state"><h2>No crops seeded</h2><p>Add the first crop to this farm.</p></div>{% endfor %}</section>
+{% endblock %}

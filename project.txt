@@ -1,0 +1,1102 @@
+# Build an End-to-End Microservices Demo Application
+
+I want you to build a complete, runnable **end-to-end microservices demo application** that I can use to learn and demonstrate:
+
+* Microservices architecture
+* FastAPI
+* Docker
+* Dockerfiles
+* Docker Compose
+* MySQL
+* MongoDB
+* Frontend + backend integration
+* REST APIs
+* Service-to-service communication
+* Shared databases / database ownership concepts
+* Environment variables and configuration
+* Container networking
+* Health checks
+* Basic production-style project structure
+
+## 1. Project Theme
+
+Build a **Smart Agriculture / Smart Farming Management System** called:
+
+**SmartFarm**
+
+The application should allow a farmer to manage farms, crops, and sensor/field data.
+
+The application should contain at least **3 independent FastAPI microservices** that together form one complete application.
+
+Use a simple modern frontend so that I can demonstrate the complete flow:
+
+**Browser → Frontend → Microservices → MySQL/MongoDB**
+
+---
+
+# 2. Required Microservices
+
+Create these three microservices:
+
+## Service 1 — User/Farmer Service
+
+Responsibility:
+
+* Farmer registration
+* Farmer login
+* Farmer profile
+* Basic farmer management
+
+Use **MySQL** for persistent relational data.
+
+Example data:
+
+* farmer_id
+* name
+* email
+* password_hash
+* phone
+* created_at
+
+Endpoints:
+
+```text
+POST /farmers
+GET /farmers/{farmer_id}
+GET /farmers
+PUT /farmers/{farmer_id}
+DELETE /farmers/{farmer_id}
+```
+
+---
+
+## Service 2 — Farm/Crop Service
+
+Responsibility:
+
+* Create farms
+* Manage farms
+* Add crops to farms
+* View crop information
+
+Use **MySQL** for relational data.
+
+Example tables:
+
+```text
+farms
+---------
+id
+farmer_id
+farm_name
+location
+area_acres
+created_at
+
+crops
+---------
+id
+farm_id
+crop_name
+crop_type
+sowing_date
+expected_harvest_date
+status
+created_at
+```
+
+Important:
+
+`farmer_id` should reference the farmer concept from the User/Farmer Service.
+
+Demonstrate how one microservice can consume data belonging to another service through an API rather than directly depending on the other service's application code.
+
+Endpoints:
+
+```text
+POST /farms
+GET /farms
+GET /farms/{farm_id}
+PUT /farms/{farm_id}
+DELETE /farms/{farm_id}
+
+POST /farms/{farm_id}/crops
+GET /farms/{farm_id}/crops
+GET /crops/{crop_id}
+```
+
+---
+
+# 3. Service 3 — Farm Monitoring / Sensor Service
+
+Responsibility:
+
+* Store sensor readings
+* Retrieve sensor readings
+* Show latest field conditions
+* Generate simple farm monitoring information
+
+Use **MongoDB** for this service.
+
+MongoDB is intentional here because sensor data is flexible and can contain different fields over time.
+
+Example MongoDB document:
+
+```json
+{
+  "farm_id": 1,
+  "sensor_id": "SENSOR-001",
+  "timestamp": "2026-08-12T10:00:00",
+  "temperature": 31.5,
+  "humidity": 62,
+  "soil_moisture": 41,
+  "rainfall": 0,
+  "additional_data": {
+    "battery": 87,
+    "signal_strength": 92
+  }
+}
+```
+
+Do NOT force this data into MySQL.
+
+Endpoints:
+
+```text
+POST /readings
+GET /readings/{farm_id}
+GET /readings/{farm_id}/latest
+GET /readings/{farm_id}/summary
+```
+
+---
+
+# 4. Database Architecture
+
+Use both databases in the same overall application.
+
+## MySQL
+
+MySQL should be used by:
+
+* user-service
+* farm-service
+
+MySQL should contain relational/business data such as:
+
+```text
+farmers
+farms
+crops
+```
+
+## MongoDB
+
+MongoDB should be used by:
+
+* monitoring-service
+
+MongoDB should contain:
+
+```text
+sensor_readings
+```
+
+Important learning requirement:
+
+Clearly demonstrate that **different microservices can use different types of databases**.
+
+Do not artificially force everything into one database.
+
+---
+
+# 5. Important Microservices Architecture Requirement
+
+I want this project to teach me the difference between:
+
+```text
+Monolithic Application
+        vs
+Microservices Application
+```
+
+The final architecture should approximately look like:
+
+```text
+                    ┌─────────────────┐
+                    │    Frontend     │
+                    │ HTML/CSS/JS     │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              ▼              ▼
+      ┌─────────────┐ ┌─────────────┐ ┌──────────────┐
+      │ User Service│ │ Farm Service│ │   Monitoring │
+      │  FastAPI    │ │   FastAPI   │ │    Service   │
+      └──────┬──────┘ └──────┬──────┘ │   FastAPI    │
+             │               │         └──────┬───────┘
+             │               │                │
+             ▼               ▼                ▼
+        ┌─────────┐     ┌─────────┐      ┌──────────┐
+        │  MySQL  │     │  MySQL  │      │ MongoDB  │
+        └─────────┘     └─────────┘      └──────────┘
+```
+
+However, if appropriate, use a **single MySQL container/database server** with separate databases or schemas for the MySQL-based services, while keeping MongoDB separate.
+
+Explain the trade-off.
+
+---
+
+# 6. Frontend
+
+Create a simple frontend.
+
+Do NOT make the frontend unnecessarily complicated.
+
+Use:
+
+* HTML
+* CSS
+* Vanilla JavaScript
+
+The frontend should provide a simple dashboard.
+
+Dashboard should show:
+
+### Farmer
+
+* Farmer registration form
+* Farmer list
+
+### Farms
+
+* Create farm
+* List farms
+
+### Crops
+
+* Add crop
+* List crops
+
+### Monitoring
+
+* Enter/select farm
+* Display latest sensor readings
+* Temperature
+* Humidity
+* Soil moisture
+* Rainfall
+
+Create a simple dashboard UI that visually demonstrates that all these features are coming from different microservices.
+
+The frontend should call the FastAPI services using REST APIs.
+
+---
+
+# 7. API Documentation
+
+FastAPI automatically provides Swagger/OpenAPI.
+
+Make sure each service exposes:
+
+```text
+/docs
+```
+
+For example:
+
+```text
+http://localhost:8001/docs
+http://localhost:8002/docs
+http://localhost:8003/docs
+```
+
+Use meaningful API tags such as:
+
+```text
+Farmers
+Farms
+Crops
+Sensor Readings
+Monitoring
+```
+
+---
+
+# 8. Docker Requirements
+
+Every microservice must have its own Dockerfile.
+
+Example:
+
+```text
+user-service/
+    Dockerfile
+
+farm-service/
+    Dockerfile
+
+monitoring-service/
+    Dockerfile
+```
+
+The frontend should also be containerized.
+
+Use a lightweight web server such as Nginx to serve the static frontend.
+
+---
+
+# 9. Docker Compose
+
+Create a complete:
+
+```text
+docker-compose.yaml
+```
+
+It should orchestrate the entire application.
+
+Expected containers/services:
+
+```text
+frontend
+user-service
+farm-service
+monitoring-service
+mysql
+mongodb
+```
+
+Optionally include:
+
+```text
+nginx
+```
+
+if needed for frontend serving or reverse proxying.
+
+Docker Compose must:
+
+* Build the FastAPI services
+* Build the frontend
+* Start MySQL
+* Start MongoDB
+* Create the application network
+* Configure environment variables
+* Configure service dependencies
+* Configure persistent volumes
+* Configure health checks where appropriate
+
+I should be able to start the entire application with:
+
+```bash
+docker compose up --build
+```
+
+And stop it with:
+
+```bash
+docker compose down
+```
+
+---
+
+# 10. Environment Variables
+
+Do NOT hard-code database credentials inside Python source code.
+
+Create:
+
+```text
+.env
+```
+
+Use environment variables such as:
+
+```env
+MYSQL_ROOT_PASSWORD=root@123
+
+MYSQL_HOST=mysql
+MYSQL_PORT=3306
+MYSQL_DATABASE=smartfarm
+
+MONGODB_HOST=mongodb
+MONGODB_PORT=27017
+MONGODB_DATABASE=smartfarm_monitoring
+```
+
+For local development outside Docker, make sure the configuration can also support:
+
+```text
+localhost
+```
+
+as the database host.
+
+Use Pydantic Settings or an equivalent clean configuration approach.
+
+---
+
+# 11. MySQL Credentials
+
+The existing local MySQL credentials are:
+
+```text
+username: root
+password: root@123
+```
+
+Use these as the initial development credentials in `.env`.
+
+However, design the application so credentials are configurable through environment variables.
+
+Do not hard-code them into application code.
+
+---
+
+# 12. MongoDB
+
+Configure MongoDB through Docker Compose.
+
+Use a persistent Docker volume.
+
+Example:
+
+```text
+mongodb_data
+```
+
+The application should automatically connect to MongoDB when the monitoring service starts.
+
+---
+
+# 13. Database Initialization
+
+Provide database initialization/migration support.
+
+For MySQL, use a proper ORM such as:
+
+```text
+SQLAlchemy
+```
+
+and preferably:
+
+```text
+Alembic
+```
+
+for migrations.
+
+Do not require me to manually create all tables before running the project.
+
+The project should provide a clear way to initialize the schema.
+
+---
+
+# 14. Project Structure
+
+Use a clean structure similar to:
+
+```text
+smartfarm/
+│
+├── docker-compose.yaml
+├── .env
+├── .env.example
+├── README.md
+├── .gitignore
+│
+├── frontend/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   ├── index.html
+│   ├── css/
+│   │   └── style.css
+│   └── js/
+│       └── app.js
+│
+├── user-service/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── models/
+│   │   ├── schemas/
+│   │   ├── routers/
+│   │   └── services/
+│   └── tests/
+│
+├── farm-service/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── models/
+│   │   ├── schemas/
+│   │   ├── routers/
+│   │   └── services/
+│   └── tests/
+│
+├── monitoring-service/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   ├── models/
+│   │   ├── schemas/
+│   │   ├── routers/
+│   │   └── services/
+│   └── tests/
+│
+└── docs/
+    └── architecture.md
+```
+
+You may improve this structure if there is a better professional approach.
+
+---
+
+# 15. Ports
+
+Use separate ports for the FastAPI services:
+
+```text
+Frontend:       3000
+User Service:   8001
+Farm Service:   8002
+Monitoring:     8003
+MySQL:          3306
+MongoDB:        27017
+```
+
+If a reverse proxy is used, clearly explain how routing works.
+
+---
+
+# 16. Service-to-Service Communication
+
+Demonstrate real microservice communication.
+
+For example:
+
+```text
+Frontend
+   |
+   v
+Farm Service
+   |
+   | HTTP request
+   v
+User Service
+```
+
+For example, when creating a farm:
+
+```text
+POST /farms
+```
+
+Farm Service should verify that the specified `farmer_id` exists by calling User Service.
+
+Do NOT directly import User Service's Python code into Farm Service.
+
+This is important because I want to understand actual microservice boundaries.
+
+---
+
+# 17. Database Ownership
+
+Follow reasonable database ownership principles.
+
+For example:
+
+```text
+User Service
+    owns
+    farmers
+
+Farm Service
+    owns
+    farms
+    crops
+
+Monitoring Service
+    owns
+    sensor_readings
+```
+
+Explain in the documentation why directly sharing the same tables between microservices is generally undesirable.
+
+If both User Service and Farm Service use the same MySQL server/database, clearly explain the distinction between:
+
+```text
+shared database infrastructure
+```
+
+and
+
+```text
+shared database ownership
+```
+
+---
+
+# 18. Sample Data
+
+Provide seed/sample data so that after starting the application I can immediately demonstrate it.
+
+For example:
+
+```text
+Farmer:
+Ranjit Farmer
+
+Farm:
+Green Valley Farm
+
+Crop:
+Wheat
+
+Sensors:
+SENSOR-001
+SENSOR-002
+```
+
+Insert several MongoDB sensor readings with different timestamps.
+
+---
+
+# 19. Health Checks
+
+Each FastAPI service should expose:
+
+```text
+GET /health
+```
+
+Example response:
+
+```json
+{
+  "status": "healthy",
+  "service": "user-service"
+}
+```
+
+Docker Compose should use health checks where practical.
+
+---
+
+# 20. Error Handling
+
+Implement basic production-style error handling:
+
+* Validation errors
+* Database connection errors
+* Resource not found
+* Duplicate records
+* Invalid farmer_id
+* Invalid farm_id
+* Service unavailable
+
+Return proper HTTP status codes.
+
+Examples:
+
+```text
+200 OK
+201 Created
+400 Bad Request
+404 Not Found
+409 Conflict
+500 Internal Server Error
+503 Service Unavailable
+```
+
+---
+
+# 21. Logging
+
+Add basic structured/application logging to each service.
+
+Logs should make it easy to identify:
+
+```text
+service name
+request
+HTTP method
+endpoint
+status code
+error
+```
+
+Make sure logs are visible through:
+
+```bash
+docker compose logs
+```
+
+and:
+
+```bash
+docker compose logs user-service
+docker compose logs farm-service
+docker compose logs monitoring-service
+```
+
+---
+
+# 22. Testing
+
+Add basic tests for each service.
+
+Use:
+
+```text
+pytest
+```
+
+At minimum, include tests for:
+
+* Health endpoint
+* Create farmer
+* Create farm
+* Create crop
+* Create sensor reading
+* Retrieve sensor readings
+
+Tests should be easy to understand.
+
+---
+
+# 23. README
+
+Create a detailed `README.md`.
+
+The README is very important because this project is primarily for learning.
+
+Include:
+
+## Architecture
+
+Explain the architecture using a Mermaid diagram.
+
+## Technologies
+
+Explain:
+
+```text
+Python
+FastAPI
+SQLAlchemy
+Alembic
+MySQL
+MongoDB
+Docker
+Docker Compose
+Nginx
+HTML/CSS/JavaScript
+pytest
+```
+
+## Why Microservices?
+
+Explain why the application was divided into three services.
+
+## Why MySQL?
+
+Explain which data is relational.
+
+## Why MongoDB?
+
+Explain why sensor data is better suited to a flexible document model in this demo.
+
+## Docker Explanation
+
+Explain:
+
+```text
+Dockerfile
+Image
+Container
+Volume
+Network
+Docker Compose
+```
+
+## How Services Communicate
+
+Explain HTTP communication between services.
+
+## How Databases Work
+
+Explain which service owns which data.
+
+---
+
+# 24. Learning Guide
+
+Create another file:
+
+```text
+docs/learning-guide.md
+```
+
+This should teach me the project step-by-step.
+
+Start with:
+
+### Step 1
+
+Run the application without Docker.
+
+### Step 2
+
+Understand each FastAPI service.
+
+### Step 3
+
+Understand MySQL connection.
+
+### Step 4
+
+Understand MongoDB connection.
+
+### Step 5
+
+Understand frontend → API communication.
+
+### Step 6
+
+Create Dockerfiles.
+
+### Step 7
+
+Build Docker images.
+
+### Step 8
+
+Run individual containers.
+
+### Step 9
+
+Understand Docker networking.
+
+### Step 10
+
+Run everything using Docker Compose.
+
+### Step 11
+
+Understand volumes.
+
+### Step 12
+
+Understand environment variables.
+
+### Step 13
+
+Understand service-to-service communication.
+
+### Step 14
+
+Understand database ownership.
+
+### Step 15
+
+Understand how the complete application works as one system.
+
+---
+
+# 25. Demonstration Scenario
+
+Create:
+
+```text
+docs/demo-scenario.md
+```
+
+Give me a step-by-step demo that I can perform in front of someone.
+
+For example:
+
+### Demo 1
+
+Start the entire application:
+
+```bash
+docker compose up --build
+```
+
+### Demo 2
+
+Open the frontend.
+
+### Demo 3
+
+Create a farmer.
+
+### Demo 4
+
+Create a farm for that farmer.
+
+### Demo 5
+
+Add a crop.
+
+### Demo 6
+
+Insert sensor data.
+
+### Demo 7
+
+Display sensor readings.
+
+### Demo 8
+
+Show that MySQL contains farmer/farm/crop relational data.
+
+### Demo 9
+
+Show that MongoDB contains sensor documents.
+
+### Demo 10
+
+Stop one service and demonstrate the effect.
+
+### Demo 11
+
+Restart the service.
+
+### Demo 12
+
+Show Docker Compose logs.
+
+This should help me demonstrate the microservices concept practically.
+
+---
+
+# 26. Important Docker Learning Requirement
+
+Do not hide everything behind Docker Compose.
+
+I want the README to also show commands such as:
+
+```bash
+docker build
+docker images
+docker run
+docker ps
+docker ps -a
+docker logs
+docker exec
+docker stop
+docker start
+docker rm
+docker rmi
+docker network
+docker volume
+```
+
+Explain how these commands relate to this project.
+
+Also explain what Docker Compose is doing behind the scenes.
+
+---
+
+# 27. Important Requirement: Keep It Understandable
+
+This is a **learning/demo project**, not a huge enterprise application.
+
+Do NOT over-engineer it.
+
+Avoid:
+
+* Kubernetes
+* Kafka
+* RabbitMQ
+* Redis
+* Celery
+* Complex authentication
+* Complex frontend frameworks
+* Complex cloud deployment
+
+unless absolutely necessary.
+
+The primary objective is to understand:
+
+```text
+Microservices
++
+FastAPI
++
+MySQL
++
+MongoDB
++
+Docker
++
+Docker Compose
++
+Frontend
++
+Service-to-service communication
+```
+
+Keep the code clean, simple, modular, and beginner-friendly.
+
+---
+
+# 28. Final Validation
+
+After creating the project:
+
+1. Verify the project structure.
+2. Verify all Dockerfiles.
+3. Verify docker-compose.yaml.
+4. Verify environment variables.
+5. Verify MySQL connection.
+6. Verify MongoDB connection.
+7. Verify all FastAPI services start successfully.
+8. Verify frontend works.
+9. Verify APIs work.
+10. Verify service-to-service communication.
+11. Verify MySQL data persistence.
+12. Verify MongoDB data persistence.
+13. Verify Docker volumes.
+14. Run the test suite.
+15. Fix any errors you encounter.
+
+Most importantly, **actually test the complete application** rather than only generating the files.
+
+At the end, provide me with:
+
+```text
+1. Project structure
+2. How to start the project
+3. URLs to open
+4. Important Docker commands
+5. API endpoints
+6. Database information
+7. Demo flow
+8. Explanation of the architecture
+9. Explanation of how MySQL and MongoDB are used together
+10. Any assumptions or limitations
+```
+
+The final project must be runnable with:
+
+```bash
+docker compose up --build
+```
+
+and should provide a complete working demonstration of a **3-microservice FastAPI application using both MySQL and MongoDB, with a frontend, Dockerfiles, Docker Compose, persistent databases, and service-to-service communication**.

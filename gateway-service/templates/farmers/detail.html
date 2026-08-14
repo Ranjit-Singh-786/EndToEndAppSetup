@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="detail-hero blue-border"><div><p class="eyebrow">FARMER PROFILE / USER SERVICE</p><h1>{{ farmer.name }}</h1><p class="lede">{{ farmer.email }} · {{ farmer.phone or 'No phone recorded' }}</p></div><span class="big-id">#{{ farmer.id }}</span></section>
+<section class="section-heading"><div><p class="eyebrow">RELATIONSHIP VIEW</p><h2>Owned farms</h2></div><a class="button primary" href="/farms/new">Create farm</a></section>
+<section class="record-grid">{% for farm in farms %}<article class="record-card accent-green"><div class="record-index">0{{ loop.index }}</div><div class="record-body"><div class="record-title"><h2>{{ farm.farm_name }}</h2><span class="pill green">{{ farm.area_acres }} acres</span></div><p>{{ farm.location }}</p><p class="muted">{{ farm.crops|length }} crop record{{ '' if farm.crops|length == 1 else 's' }}</p><a class="text-link" href="/farms/{{ farm.id }}">Open farm →</a></div></article>{% else %}<div class="empty-state"><h2>No farms linked</h2><p>Use the farm service to create one for this farmer.</p></div>{% endfor %}</section>
+{% endblock %}

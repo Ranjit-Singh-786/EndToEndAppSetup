@@ -1,0 +1,1 @@
+Here, I will build an end-to-end application consisting of multiple microservices. I will use Docker Compose to define, configure, and manage all these services together, allowing them to run as a single application with a unified workflow.

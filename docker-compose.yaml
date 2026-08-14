@@ -1,0 +1,166 @@
+services:
+  # ==============================================================================
+  # Database Layer (Shared MySQL & MongoDB)
+  # ==============================================================================
+  mysql:
+    image: mysql:8.0
+    container_name: smartfarm_mysql
+    restart: always
+    environment:
+      # Creates root account with password from environment variables
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # Map SQL script to automatically create isolated schemas on startup
+      - ./init-db:/docker-entrypoint-initdb.d
+    networks:
+      - smartfarm_net
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  mongodb:
+    image: mongo:6.0
+    container_name: smartfarm_mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - smartfarm_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ==============================================================================
+  # Backend FastAPI Services Layer
+  # ==============================================================================
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: smartfarm_user_service
+    restart: always
+    ports:
+      - "8001:8001"
+    environment:
+      # Connection params (config.py builds the URL with a URL-encoded password)
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USERS_DB=${MYSQL_USERS_DB}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - smartfarm_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  farm-service:
+    build:
+      context: ./farm-service
+      dockerfile: Dockerfile
+    container_name: smartfarm_farm_service
+    restart: always
+    ports:
+      - "8002:8002"
+    environment:
+      # Connection params (config.py builds the URL with a URL-encoded password)
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_FARMS_DB=${MYSQL_FARMS_DB}
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+    networks:
+      - smartfarm_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  monitoring-service:
+    build:
+      context: ./monitoring-service
+      dockerfile: Dockerfile
+    container_name: smartfarm_monitoring_service
+    restart: always
+    ports:
+      - "8003:8003"
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017
+      - MONGODB_DATABASE=${MONGODB_DATABASE}
+      - FARM_SERVICE_URL=${FARM_SERVICE_URL}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      farm-service:
+        condition: service_healthy
+    networks:
+      - smartfarm_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ==============================================================================
+  # Browser-facing FastAPI gateway and server-rendered templates
+  # ============================================================================== 
+  gateway-service:
+    build:
+      context: ./gateway-service
+      dockerfile: Dockerfile
+    container_name: smartfarm_gateway
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - USER_SERVICE_URL=${USER_SERVICE_URL}
+      - FARM_SERVICE_URL=${FARM_SERVICE_URL}
+      - MONITORING_SERVICE_URL=${MONITORING_SERVICE_URL}
+    depends_on:
+      user-service:
+        condition: service_healthy
+      farm-service:
+        condition: service_healthy
+      monitoring-service:
+        condition: service_healthy
+    networks:
+      - smartfarm_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+# ==============================================================================
+# Persistent Volumes & Private Network Declarations
+# ==============================================================================
+volumes:
+  mysql_data:
+  mongodb_data:
+
+networks:
+  smartfarm_net:
+    driver: bridge

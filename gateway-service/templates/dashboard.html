@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+    <div>
+        <p class="eyebrow">OPERATIONS / TODAY</p>
+        <h1>One farm, three<br><em>independent</em> services.</h1>
+        <p class="lede">A server-rendered control room for farmer identity, farm operations, and field telemetry. Each card below is backed by a different FastAPI boundary.</p>
+        <div class="hero-actions"><a class="button primary" href="/farms/new">Create a farm <span>→</span></a><a class="text-link" href="/monitoring">Open live monitoring</a></div>
+    </div>
+    <div class="architecture-note">
+        <span class="note-label">REQUEST PATH</span>
+        <strong>Browser → Gateway</strong>
+        <div class="path-line"><span>Jinja pages</span><b>→</b><span>HTTP APIs</span><b>→</b><span>Owned data</span></div>
+        <small>The browser never reaches a service database or internal container address.</small>
+    </div>
+</section>
+
+<section class="section-heading"><div><p class="eyebrow">SYSTEM PULSE</p><h2>Service health</h2></div><span class="muted">Docker Compose network</span></section>
+<section class="service-grid">
+    {% for service in services %}
+    <article class="service-card {% if service.online %}up{% else %}down{% endif %}">
+        <div class="service-top"><span class="status-dot"></span><span>{{ service.name }}</span><b>{{ 'ONLINE' if service.online else 'OFFLINE' }}</b></div>
+        <p>{{ service.data.database|default('HTTP endpoint')|capitalize }}</p>
+        <small>{% if service.online %}Responding to health checks{% else %}Check container logs{% endif %}</small>
+    </article>
+    {% endfor %}
+</section>
+
+<section class="section-heading"><div><p class="eyebrow">DOMAIN SNAPSHOT</p><h2>What the system knows</h2></div><a class="text-link" href="/farmers">View all records →</a></section>
+<section class="stats-grid">
+    <article class="stat-card blue"><span class="stat-number">{{ farmers|length }}</span><span class="stat-label">Registered farmers</span><a href="/farmers">User service →</a></article>
+    <article class="stat-card green"><span class="stat-number">{{ farms|length }}</span><span class="stat-label">Managed farms</span><a href="/farms">Farm service →</a></article>
+    <article class="stat-card amber"><span class="stat-number">{% set crop_count = namespace(value=0) %}{% for farm in farms %}{% set crop_count.value = crop_count.value + farm.crops|length %}{% endfor %}{{ crop_count.value }}</span><span class="stat-label">Tracked crops</span><a href="/farms">Crop records →</a></article>
+</section>
+
+<section class="flow-panel">
+    <div><p class="eyebrow">LEARNING MAP</p><h2>Follow one complete request</h2><p class="muted">Create a farm and watch the ownership boundaries in action.</p></div>
+    <div class="flow-steps"><div><b>01</b><strong>User service</strong><span>farmer_id is owned by MySQL schema A</span></div><div><b>02</b><strong>Farm service</strong><span>verifies farmer over HTTP, then writes schema B</span></div><div><b>03</b><strong>Monitoring</strong><span>verifies farm over HTTP, then writes MongoDB</span></div></div>
+</section>
+{% endblock %}
